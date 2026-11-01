@@ -313,11 +313,15 @@ and the demo proves nothing.*
 
 Deliberately **not** used: `/api/v2/json-export` — found lossy for
 tabs/backslashes in the ocbox work (§2 of its spec); `/get` returns
-the raw `.phext` file. Fidelity caveat: `submilli:http` decodes
-bodies as UTF-8; phext's nine delimiter bytes are all single-byte
-UTF-8 control codes, so valid-UTF-8 phexts (the fixture included)
-round-trip byte-exact. Invalid-UTF-8 scroll bytes would be lossy —
-SQ v0.6.0 has no raw-bytes download endpoint.
+the raw `.phext` file. Fidelity: `submilli:http` decodes bodies
+as UTF-8, and that is exact for phext — phext is valid UTF-8
+within each scroll (scroll content is text; the nine delimiter
+bytes are ASCII control codes, themselves valid UTF-8; arbitrary
+binary rides inside scrolls as text, e.g. base64), so phexts
+round-trip byte-exact over this transport. (An earlier draft of
+this addendum carried an "invalid-UTF-8 scroll bytes" caveat;
+Will corrected it on 2026-11-01 — there is no such case in a
+conforming phext — and it is retired.)
 
 ## Deviations / findings during the build
 

@@ -242,7 +242,9 @@ production wants SQ behind HTTPS (then only `sqBaseUrl` changes) or
 the server's egress grants re-checked for wherever SQ lives. Writes
 are whole-scroll overwrites via SQ `update`, so a replayed write is
 idempotent; durable execution stays **off** regardless, as in Route B.
-`submilli:http` decodes bodies as UTF-8; phext delimiters are
-single-byte UTF-8 control codes, so valid-UTF-8 phexts round-trip
-byte-exact, but SQ v0.6.0 offers no raw-bytes download for
-invalid-UTF-8 scroll content.
+`submilli:http` decodes bodies as UTF-8, and that is exact for
+phext: a phext is valid UTF-8 within each scroll — scroll content
+is text, the delimiter bytes are ASCII control codes (themselves
+valid UTF-8), and arbitrary binary rides inside scrolls as text
+(e.g. base64) — so phexts round-trip byte-exact over this
+transport.

@@ -274,7 +274,8 @@ End-to-end (`verify.sh`, throwaway `SUBMILLI_HOME`, like theirs):
   verify.sh mode 100755, published demo.phext round-trips to SHA-256
   7abb8e51…. Publish script: ~/workspace/submilli-phext/publish_demo.py.
 - **Route A — SQ backend: ✅ COMPLETE 2026-11-01** (routea/, published
-  as commit 2 on the demo repo). Same ops/capabilities/payloads; main
+  as commit 2 on the demo repo: submilli-phext-demo@main 6190206,
+  parent a908df6, 48 files, remote-verified). Same ops/capabilities/payloads; main
   Blueprint rules byte-identical to Route B (verify A0 diffs them);
   artifact requires ONLY http.get/http.post (host 127.0.0.1, path
   /api/v2/*) + secrets.get (name == "SQ_API_KEY") — no fs. Endpoints:
@@ -287,9 +288,14 @@ End-to-end (`verify.sh`, throwaway `SUBMILLI_HOME`, like theirs):
   per-run sentinel key appears in ZERO files across trees, homes,
   logs, audit, SQ data and program outputs. Cross-check: after the
   same work.ts, SQ's phext file hashes to 5928f392… — byte-identical
-  to Route B's Stage-2 volume file. Caveat (documented): submilli:http
-  decodes bodies as UTF-8, so invalid-UTF-8 scroll bytes would be
-  lossy over this transport; valid phexts round-trip byte-exact.
+  to Route B's Stage-2 volume file. Fidelity: `submilli:http` decodes
+  bodies as UTF-8, and that is exact for phext — a phext is valid
+  UTF-8 within each scroll (Will, 2026-11-01): scroll content is text,
+  the delimiter bytes are ASCII control codes (themselves valid
+  UTF-8), and arbitrary binary rides inside scrolls as text (e.g.
+  base64). An earlier draft caveat about "invalid-UTF-8 scroll bytes"
+  was retired by that correction — there is no such case in a
+  conforming phext.
 - **Later, optional:** real-agent run via MCP (their agent.py shape;
   note the MCP *harness* side is fine — it is MCP-as-Package that is
   argument-blind); Phase-2 audit→phext companion (ocbox pattern).

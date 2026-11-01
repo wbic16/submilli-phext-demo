@@ -104,10 +104,11 @@ logs/                      per-test logs from the latest verify run
 - **Fidelity:** `toc`/`checksum` read the whole phext through SQ's
   `/get` (raw file), *not* `json-export` (found lossy for
   tabs/backslashes in the ocbox work). `submilli:http` decodes bodies
-  as UTF-8; phext delimiters are single-byte UTF-8 control codes, so
-  valid-UTF-8 phexts round-trip byte-exact. A phext with invalid-UTF-8
-  scroll bytes would be lossy here — SQ v0.6.0 offers no raw-bytes
-  download.
+  as UTF-8, and that is exact for phext: a phext is valid UTF-8
+  within each scroll — scroll content is text, the delimiter bytes
+  are ASCII control codes (themselves valid UTF-8), and arbitrary
+  binary rides inside scrolls as text (e.g. base64). Phexts
+  round-trip byte-exact over this transport.
 - **SQ's ghost-file behaviour:** naming a new `p` in SQ silently
   creates an empty phext. The package always uses the bound phextId,
   and the demo's phext is seeded by the operator, so this never fires
