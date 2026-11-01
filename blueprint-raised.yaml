@@ -1,0 +1,47 @@
+kind: blueprint
+name: phext-demo
+allow_insecure_http: false        # Route B needs no network at all
+
+# blueprint.yaml plus ONE added rule for main (marked RAISE below):
+# scrolls.write in the reference lane. This is the demo's "raise" — the
+# operator widening a limit by editing one line, cf. the $25 -> $50 move
+# in Submilli's own demo.
+
+variables:
+  phextId: { required: true }
+  lane:    { required: true }     # e.g. "1.1.1/1.2.1" — bound by the app
+
+packages:
+- '@wbic16/phext'
+
+vfs: per_session
+
+default: deny
+permissions:
+  main:
+  - capability: phext.example/toc.read
+    filter: phextId == ${vars.phextId}
+    action: allow
+  - capability: phext.example/scrolls.select
+    filter: phextId == ${vars.phextId} and coordinate glob "1.1.1/1.1.1/*"
+    action: allow               # reference lane: read
+  - capability: phext.example/scrolls.select
+    filter: phextId == ${vars.phextId} and coordinate glob "${vars.lane}/*"
+    action: allow               # own lane: read
+  - capability: phext.example/scrolls.write
+    filter: phextId == ${vars.phextId} and coordinate glob "${vars.lane}/*"
+    action: allow               # own lane: write
+  - capability: phext.example/scrolls.write
+    filter: phextId == ${vars.phextId} and coordinate glob "1.1.1/1.1.1/*"
+    action: allow               # RAISE: reference lane becomes writable
+  - capability: phext.example/checksum.read
+    filter: phextId == ${vars.phextId}
+    action: allow
+  '@wbic16/phext':                # what the package itself may do
+  - { capability: fs.mkdir, filter: path == "/phext" and recursive == true, action: allow }
+  - { capability: fs.stat,  filter: path == "/phext", action: allow }
+    # ^ the package's ensureDir() stats its own directory; glob "/phext/*"
+    # does not match "/phext" itself (Stage-1 finding, cf. BUILD-REPORT.md)
+  - { capability: fs.read,  filter: path glob "/phext/*", action: allow }
+  - { capability: fs.write, filter: path glob "/phext/*", action: allow }
+  - { capability: fs.stat,  filter: path glob "/phext/*", action: allow }

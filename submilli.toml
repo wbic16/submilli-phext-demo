@@ -1,0 +1,6 @@
+[[package]]
+name = "@wbic16/phext"
+version = "0.1.0"
+description = "Phext scroll storage for Submilli programs: coordinate-addressed scrolls in one file per phext, with semantic permission checks on every operation."
+keywords = ["phext", "memory", "scrolls", "storage"]
+path = "package"

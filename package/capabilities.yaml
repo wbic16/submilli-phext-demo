@@ -1,0 +1,40 @@
+namespace: wbic16
+provides:
+- name: phext.example/checksum.read
+  description: SHA-256 of the phext file's raw bytes, as hex.
+  fields:
+    phextId:
+      type: string
+- name: phext.example/scrolls.select
+  description: Read one scroll by coordinate.
+  fields:
+    coordinate:
+      type: string
+    lane:
+      type: string
+    phextId:
+      type: string
+- name: phext.example/scrolls.write
+  description: Write one scroll by coordinate (insert-or-replace, whole scroll).
+  fields:
+    coordinate:
+      type: string
+    lane:
+      type: string
+    length:
+      type: number
+    phextId:
+      type: string
+- name: phext.example/toc.read
+  description: List the coordinates of every scroll in one phext.
+  fields:
+    phextId:
+      type: string
+requires:
+- capability: fs.mkdir
+  filter: path == "/phext" and recursive == true
+- capability: fs.read
+- capability: fs.stat
+- capability: fs.stat
+  filter: path == "/phext"
+- capability: fs.write
