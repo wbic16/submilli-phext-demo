@@ -1,0 +1,51 @@
+kind: blueprint
+name: phext-demo-routea
+allow_insecure_http: true         # SQ is plain HTTP on loopback (local-demo posture)
+
+variables:
+  phextId: { required: true }
+  lane:    { required: true }     # e.g. "1.1.1/1.2.1" — bound by the app
+
+# The SQ key, declared BY NAME ONLY. Its value lives in the server's
+# encrypted secret store (operator: `submilli server secret put
+# SQ_API_KEY`) and in the SQ process itself — nowhere else. It is not
+# in this file, not in the app, not in any program, not in the phext.
+secrets:
+  SQ_API_KEY:
+    store: SQ_API_KEY
+
+packages:
+- '@wbic16/phext'
+
+# The phext no longer lives in the session filesystem — it lives in
+# SQ, reached over HTTP by the package. per_session remains only as
+# the (unused) scratch filesystem for programs.
+vfs: per_session
+
+default: deny
+permissions:
+  main:
+  - capability: phext.example/toc.read
+    filter: phextId == ${vars.phextId}
+    action: allow
+  - capability: phext.example/scrolls.select
+    filter: phextId == ${vars.phextId} and coordinate glob "1.1.1/1.1.1/*"
+    action: allow               # reference lane: read
+  - capability: phext.example/scrolls.select
+    filter: phextId == ${vars.phextId} and coordinate glob "${vars.lane}/*"
+    action: allow               # own lane: read
+  - capability: phext.example/scrolls.write
+    filter: phextId == ${vars.phextId} and coordinate glob "${vars.lane}/*"
+    action: allow               # own lane: write — the only write rule
+  - capability: phext.example/checksum.read
+    filter: phextId == ${vars.phextId}
+    action: allow
+  '@wbic16/phext':                # what the package itself may do — and nothing else
+  - { capability: http.get,  filter: host == "127.0.0.1" and path glob "/api/v2/*", action: allow }
+  - { capability: http.get,  filter: host glob "127.0.0.1:*" and path glob "/api/v2/*", action: allow }
+  - { capability: http.post, filter: host == "127.0.0.1" and path glob "/api/v2/*", action: allow }
+  - { capability: http.post, filter: host glob "127.0.0.1:*" and path glob "/api/v2/*", action: allow }
+  - { capability: secrets.get, filter: name == "SQ_API_KEY", action: allow }
+    # ^ main gets NO http rules and NO secrets access. secrets.get from
+    # main is refused by the runtime even if granted (see
+    # blueprint-routea-permissive.yaml + programs/probe-secrets.ts).

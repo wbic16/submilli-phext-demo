@@ -1,0 +1,14 @@
+// PROBE (test A3b): a generated program tries to bypass the package
+// and call SQ directly over HTTP, with no key. main holds no http
+// rules in the Route A blueprint, so the runtime must deny the call
+// before it leaves the sandbox. verify-routea.sh renders this
+// template with the run's SQ port substituted for __SQ_PORT__ (the
+// port is random per run), runs it, and asserts a policy denial and
+// that no handbook content comes back.
+import { get } from "submilli:http";
+
+function main(): string {
+    const response = get("http://127.0.0.1:__SQ_PORT__/api/v2/select?p=demo&c=1.1.1/1.1.1/1.1.1");
+    return "probe-result: direct SQ call returned HTTP " + String(response.status) +
+        " with " + String(response.body.length) + " bytes (INVARIANT BROKEN if this prints)";
+}

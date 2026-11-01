@@ -252,3 +252,135 @@ PASS  all Stage-1 + Stage-2 checks passed.
   server-side, session lifecycle records are documented to survive, but
   Act 6 does not depend on it).
 - Nothing was pushed to GitHub; publishing remains a separate step.
+
+---
+
+# Addendum — Route A: SQ over HTTP (`../routea/`)
+
+Built 2026-11-01 at Will's direction ("implement Route A"), as a
+variant alongside Route B — Route B's tree is untouched except the
+README/BUILD-REPORT addenda; `verify.sh` was re-run after the Route A
+work and tests 1–6 still PASS (see "Regression" below).
+
+## Design
+
+Same package (`@wbic16/phext`), same four operations, same capability
+names and per-op `check()` payloads as Route B. Only the backend in
+`src/lib.ts` changed: SQ HTTP calls instead of fs. Governing
+invariant (Will): *the runtime has to be the only thing holding the
+SQ key — if the key can reach the sandbox, the capability model leaks
+and the demo proves nothing.*
+
+- The key exists only in the SQ process (`--key`) and in
+  submilli-server's encrypted secret store (operator:
+  `submilli server secret put SQ_API_KEY`, server started with
+  `SUBMILLI_SECRET_KEY` set). `blueprint-routea.yaml` declares it by
+  name only: `secrets: { SQ_API_KEY: { store: SQ_API_KEY } }`.
+- The package fetches the key per call via `secrets.get` and sets
+  `Authorization: "Bearer " + key` itself (curated github/brave
+  pattern). The key is never in a `check()` payload, never returned,
+  never logged.
+- `src/config.ts` carries only `sqBaseUrl` (set via `--config` at
+  build/publish time) — inspectable configuration, not a secret. All
+  build commands with `--config` need explicit `-p @wbic16/phext`.
+- Package caller list: `http.get`/`http.post`, each as
+  `host == "127.0.0.1" and path glob "/api/v2/*"` plus the
+  port-carrying variant `host glob "127.0.0.1:*" and path glob
+  "/api/v2/*"`, and `secrets.get` with `name == "SQ_API_KEY"`. **No
+  fs rules.** `main`: byte-identical to Route B's main section
+  (verified by extraction + diff, test A0) — no http, no secrets.
+- The compiled artifact's `capabilities.yaml` requires exactly
+  `http.get` (filter `host == "127.0.0.1"`), `http.post` (same),
+  `secrets.get` (filter `name == "SQ_API_KEY"`) — derivation
+  normalizes the URL to host-only, so the package's own requires are
+  *looser* than the blueprint's path-prefixed grants by design; the
+  blueprint is the operative constraint. `src/lib.ts` needed no fs
+  dead code: the engine (`phext.ts`) is reused purely for
+  coordinate/lane math and parsing HTTP-fetched bytes.
+- Server side: throwaway home, config sets `network.allow_localhost:
+  true` (SQ is on loopback) and the per-run audit file; blueprint sets
+  `allow_insecure_http: true` (SQ is plain HTTP on loopback).
+  Durable execution off (default), as Route B.
+
+## Endpoint mapping (per op)
+
+| Package op | SQ call | Notes |
+|---|---|---|
+| `toc` (`toc.read`) | `GET /api/v2/get?p=<id>` | whole raw phext, parsed in-package; SQ's own `toc` would do, but the parse also backs the missing-scroll disambiguation below |
+| `readScroll` (`scrolls.select`) | `GET /api/v2/select?p=<id>&c=<coord>` | empty body → re-check via `/get`+parse to distinguish "missing scroll" (throws, matching Route B) from "empty scroll" (returns "") |
+| `writeScroll` (`scrolls.write`) | `POST /api/v2/update?p=<id>&c=<coord>`, raw body | whole-scroll overwrite, idempotent — Route B's insert-or-replace semantics exactly |
+| `checksum` (`checksum.read`) | `GET /api/v2/get?p=<id>` | SHA-256 (`submilli:crypto`) over the exact bytes |
+
+Deliberately **not** used: `/api/v2/json-export` — found lossy for
+tabs/backslashes in the ocbox work (§2 of its spec); `/get` returns
+the raw `.phext` file. Fidelity caveat: `submilli:http` decodes
+bodies as UTF-8; phext's nine delimiter bytes are all single-byte
+UTF-8 control codes, so valid-UTF-8 phexts (the fixture included)
+round-trip byte-exact. Invalid-UTF-8 scroll bytes would be lossy —
+SQ v0.6.0 has no raw-bytes download endpoint.
+
+## Deviations / findings during the build
+
+- **URLs must be built inline at the call site.** Extracting a
+  `sqUrl(path)` helper made Submilli's host derivation fail
+  ("context field url.host unresolved", plus a `--deny-warnings`
+  failure) — derivation follows the config constant through
+  concatenations written at the `get`/`post` call itself.
+- **The stdlib `Response` type is not nameable**, and passing a
+  response through a hand-declared lookalike interface traps at
+  runtime with a cast failure (the subset checks casts at function
+  boundaries). Fixed brave-style: `.ok` checked inline at each call
+  site. Both rehearsal finds, now commented in `src/lib.ts`.
+- **Package unit tests cover the engine only** (4 tests: delimiter
+  parse, byte-exact round-trip + SHA-256, lane boundaries,
+  mid-insert/reparse). The four ops need a live SQ, so they are
+  exercised by `verify-routea.sh` instead — a build test has no
+  server.
+- `blueprint-routea-permissive.yaml` exists only for probe A3a: it
+  adds a main `secrets.get` rule. The linter itself warns the rule
+  "has no effect — secret values are never available to main-module
+  code", and the run confirms it.
+- Lint of both blueprints: valid, with the benign "grants it
+  differently" warnings (the path-prefixed grants are narrower than
+  the derived host-only requires) — same character as Route B's
+  designed-narrowness warnings; linted without `--deny-warnings`.
+
+## Verify results (`../routea/verify-routea.sh`, run twice, both green)
+
+```
+PASS  A0 main permissions byte-identical to Route B blueprint
+PASS  A1 legit program exits 0 with the exact Route B summary
+PASS  A2a legit work completes, injected write denied by capability+coordinate, exit nonzero
+PASS  A2b legit work completes, injected read denied by capability+coordinate, exit nonzero
+PASS  A3b main holds no http rules: direct SQ call denied by policy, no content returned
+PASS  A3a secrets.get from main refused by runtime invariant, even under a granting blueprint
+PASS  A3c SQ requires the key: 401 without, 401 with a wrong one, 200 with the runtime's
+PASS  A4 operator-side SQ select shows findings; SQ's file changed and parses as expected
+PASS  A5 audit holds no scroll text and no key; denied decisions name capability+coordinate
+PASS  A3d sentinel sweep: SQ key present in zero files (trees, homes, logs, audit, SQ data, outputs)
+PASS  all Route A checks passed.
+```
+
+A1 result string, verbatim (identical to Route B):
+`toc=4 handbook-first-words=HANDBOOK-TRIAGE-V1 Support triage findings-at=1.1.1/1.2.1/1.1.2 readback=ok`
+
+A3a refusal, verbatim (under the permissive blueprint):
+
+> PermissionDeniedError: permission denied: caller=main capability=secrets.get: secret values are never available to main-module code, and no policy can grant this. The package that needs this credential resolves it internally and never returns it — pass the secret NAME to that package's API instead. Do not work around this denial: not through another package, not by asking a package to fetch the value and hand it back, not through raw HTTP. Report it and stop.
+
+A3d sweep scope: `routea/` and `stage1/` trees (including captured
+program outputs in `logs/`), the throwaway `SUBMILLI_HOME` (encrypted
+secret store + compiled package artifact included), server log, audit
+file, SQ log and SQ data dir — the per-run sentinel appeared in zero
+files. (Process argument lists are outside file scope by definition;
+the throwaway servers are killed at exit.)
+
+A4 note: SQ's post-work `demo.phext` SHA-256 is
+`5928f392aedf46b5eea42bf43711f359ae8a892c642e0b3d27720cd650e05928` —
+byte-identical to Route B's Stage-2 in-runtime checksum over the
+named-volume file. Two storage backends, same writes, same bytes.
+
+## Regression
+
+`stage1/verify.sh` re-run after all Route A work: tests 1–6 PASS,
+unchanged (Route B untouched apart from these addenda).

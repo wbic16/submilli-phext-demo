@@ -189,3 +189,60 @@ verify.sh                the six end-to-end checks
   uncommitted write could otherwise be replayed after a crash.
 - **Version pin:** built and verified against Submilli v0.5.1 only; the
   denial error shape already changed once in the project's history.
+
+## Route A — the SQ-over-HTTP variant (`../routea/`)
+
+Everything above is Route B: the phext lives in the session
+filesystem and the package's engine reads/writes it directly. The
+sibling directory `../routea/` is the same demo with the storage
+backend swapped to an operator-run **SQ** server (`sq host`, SQ
+v0.6.0, `/api/v2` HTTP API):
+
+- **Same package name, same four operations, same capability names
+  and `check()` payloads.** `toc`/`checksum` read the whole phext via
+  SQ's `GET /api/v2/get` (raw file — *not* `json-export`, which the
+  ocbox work found lossy for tabs/backslashes); `readScroll` is
+  `GET /api/v2/select`; `writeScroll` is `POST /api/v2/update`
+  (whole-scroll, idempotent). The engine (`phext.ts`) is reused for
+  coordinate/lane math and for parsing HTTP-fetched bytes; the Route A
+  artifact's `capabilities.yaml` requires **only** `http.get`,
+  `http.post` and `secrets.get` — no `fs.*` anywhere.
+- **The program's permissions are byte-identical.** verify-routea.sh
+  test A0 extracts the `main` section from both blueprints and diffs:
+  no difference. `work.ts` returns the exact Route B summary string,
+  and both injected programs are denied with the same shapes (A1/A2).
+- **The invariant (Will):** *"when the store becomes HTTP, the
+  runtime has to be the only thing holding the SQ key. If the key can
+  reach the sandbox, the capability model leaks and the demo proves
+  nothing."* The key exists in exactly two places, both
+  operator-side: the SQ process (`--key`) and submilli-server's
+  encrypted secret store (operator: `submilli server secret put
+  SQ_API_KEY`, with a secret-store key configured). The blueprint
+  declares the secret **by name only**; the package fetches it per
+  call via `secrets.get` and sets the `Authorization` header itself.
+  `main` holds no `http.*` rules and no `secrets.get` rule, and
+  `src/config.ts` carries only the SQ base URL — inspectable
+  configuration, never a credential.
+- **Proven by attacking it** (`../routea/verify-routea.sh`, per-run
+  sentinel key): A3a — a blueprint that *grants* main `secrets.get`
+  is still refused by the runtime ("secret values are never available
+  to main-module code, and no policy can grant this"); A3b — a direct
+  SQ call from main is denied by policy before it leaves the sandbox;
+  A3c — SQ itself returns 401 with no/wrong key and 200 with the
+  runtime's key; A3d — a sentinel sweep over both trees, the server
+  home, all logs, the audit file, SQ's data dir and every program
+  output finds the key in **zero files**; A5 — the audit file holds
+  the denied capability+coordinate records and no scroll text, no key.
+  A side observation: SQ's post-work phext file is byte-identical to
+  Route B's Stage-2 result (SHA-256 `5928f392…`) — the two backends
+  serialize the same writes to the same bytes.
+
+Honest notes for Route A: loopback HTTP is a **local-demo posture** —
+production wants SQ behind HTTPS (then only `sqBaseUrl` changes) or
+the server's egress grants re-checked for wherever SQ lives. Writes
+are whole-scroll overwrites via SQ `update`, so a replayed write is
+idempotent; durable execution stays **off** regardless, as in Route B.
+`submilli:http` decodes bodies as UTF-8; phext delimiters are
+single-byte UTF-8 control codes, so valid-UTF-8 phexts round-trip
+byte-exact, but SQ v0.6.0 offers no raw-bytes download for
+invalid-UTF-8 scroll content.

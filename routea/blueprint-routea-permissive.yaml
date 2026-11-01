@@ -1,0 +1,52 @@
+kind: blueprint
+name: phext-demo-routea-permissive
+allow_insecure_http: true         # SQ is plain HTTP on loopback (local-demo posture)
+
+# PROBE-ONLY blueprint. Identical to blueprint-routea.yaml EXCEPT that
+# main is explicitly granted secrets.get for SQ_API_KEY — a grant the
+# runtime must refuse anyway (secrets are package-only, by invariant).
+# verify-routea.sh test A3a runs programs/probe-secrets.ts under this
+# blueprint to prove the key still cannot reach the sandbox even when
+# the operator tries to give it away. Never use this blueprint for
+# anything else.
+
+variables:
+  phextId: { required: true }
+  lane:    { required: true }     # e.g. "1.1.1/1.2.1" — bound by the app
+
+secrets:
+  SQ_API_KEY:
+    store: SQ_API_KEY
+
+packages:
+- '@wbic16/phext'
+
+vfs: per_session
+
+default: deny
+permissions:
+  main:
+  - capability: phext.example/toc.read
+    filter: phextId == ${vars.phextId}
+    action: allow
+  - capability: phext.example/scrolls.select
+    filter: phextId == ${vars.phextId} and coordinate glob "1.1.1/1.1.1/*"
+    action: allow               # reference lane: read
+  - capability: phext.example/scrolls.select
+    filter: phextId == ${vars.phextId} and coordinate glob "${vars.lane}/*"
+    action: allow               # own lane: read
+  - capability: phext.example/scrolls.write
+    filter: phextId == ${vars.phextId} and coordinate glob "${vars.lane}/*"
+    action: allow               # own lane: write — the only write rule
+  - capability: phext.example/checksum.read
+    filter: phextId == ${vars.phextId}
+    action: allow
+  - { capability: secrets.get, filter: name == "SQ_API_KEY", action: allow }
+    # ^ THE DELIBERATE OVER-GRANT. The runtime refuses secrets.get from
+    # main regardless of this rule; test A3a is the proof.
+  '@wbic16/phext':                # what the package itself may do — and nothing else
+  - { capability: http.get,  filter: host == "127.0.0.1" and path glob "/api/v2/*", action: allow }
+  - { capability: http.get,  filter: host glob "127.0.0.1:*" and path glob "/api/v2/*", action: allow }
+  - { capability: http.post, filter: host == "127.0.0.1" and path glob "/api/v2/*", action: allow }
+  - { capability: http.post, filter: host glob "127.0.0.1:*" and path glob "/api/v2/*", action: allow }
+  - { capability: secrets.get, filter: name == "SQ_API_KEY", action: allow }

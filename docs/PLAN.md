@@ -263,12 +263,36 @@ End-to-end (`verify.sh`, throwaway `SUBMILLI_HOME`, like theirs):
   at session open); verify.sh PASS on all of §7 tests 1–5, run three
   times incl. Emise's own re-run. Deviations: mid-file insertion added
   to the engine; the `fs.stat /phext` rule above; two injected programs.
-- **Stage 2 — persistence:** named volume, act 6.
-- **Stage 3 — publish:** push to the demo repo, README with transcripts
-  and the phext as evidence (ocbox pattern).
-- **Later, optional:** Route A backend swap behind the same capabilities;
-  real-agent run via MCP (their agent.py shape; note the MCP *harness*
-  side is fine — it is MCP-as-Package that is argument-blind).
+- **Stage 2 — persistence: ✅ COMPLETE 2026-11-01.** Named volume
+  `phext-memory` (managed-local, server config) mounted at `/phext` in
+  blueprint-persistent.yaml; verify test 6 PASS (restart + fresh session
+  readback, checksum 5928f392… == disk). See stage1/BUILD-REPORT.md.
+- **Stage 3 — publish: ✅ COMPLETE 2026-11-01.** Published to
+  wbic16/submilli-phext-demo@main: init commit ab77961 (Contents API),
+  tree commit a908df6 (25 files, parented on fresh HEAD, force
+  disabled); remote-verified — every blob sha == local git hash-object,
+  verify.sh mode 100755, published demo.phext round-trips to SHA-256
+  7abb8e51…. Publish script: ~/workspace/submilli-phext/publish_demo.py.
+- **Route A — SQ backend: ✅ COMPLETE 2026-11-01** (routea/, published
+  as commit 2 on the demo repo). Same ops/capabilities/payloads; main
+  Blueprint rules byte-identical to Route B (verify A0 diffs them);
+  artifact requires ONLY http.get/http.post (host 127.0.0.1, path
+  /api/v2/*) + secrets.get (name == "SQ_API_KEY") — no fs. Endpoints:
+  toc/checksum = GET /api/v2/get (exact bytes, parsed in-package;
+  json-export avoided as lossy), select = GET /api/v2/select,
+  write = POST /api/v2/update (whole-scroll, idempotent).
+  **Key invariant (Will) proven by tests A3a–A3d:** secrets.get from
+  main refused by runtime invariant even under a granting Blueprint;
+  direct http from main denied; SQ 401s without/with wrong key; the
+  per-run sentinel key appears in ZERO files across trees, homes,
+  logs, audit, SQ data and program outputs. Cross-check: after the
+  same work.ts, SQ's phext file hashes to 5928f392… — byte-identical
+  to Route B's Stage-2 volume file. Caveat (documented): submilli:http
+  decodes bodies as UTF-8, so invalid-UTF-8 scroll bytes would be
+  lossy over this transport; valid phexts round-trip byte-exact.
+- **Later, optional:** real-agent run via MCP (their agent.py shape;
+  note the MCP *harness* side is fine — it is MCP-as-Package that is
+  argument-blind); Phase-2 audit→phext companion (ocbox pattern).
 
 ## 9. Risks / open items
 
